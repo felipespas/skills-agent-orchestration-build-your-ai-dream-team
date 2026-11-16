@@ -1,0 +1,52 @@
+{
+  "projects": [
+    {
+      "name": "Octodex Refresh",
+      "owner": "Mona",
+      "status": "On Track",
+      "recentActivity": "Published three new character illustrations for review.",
+      "priority": "Medium",
+      "summary": "Update the Octodex collection with new characters and consistent artwork."
+    },
+    {
+      "name": "Contributor Onboarding Guide",
+      "owner": "Hubot",
+      "status": "At Risk",
+      "recentActivity": "Setup instructions need testing on a fresh Codespace.",
+      "priority": "High",
+      "summary": "A friendly step-by-step guide that helps new contributors make a first pull request."
+    },
+    {
+      "name": "CI Pipeline Speedup",
+      "owner": "Bessie",
+      "status": "Blocked",
+      "recentActivity": "Waiting on runner capacity before caching changes can ship.",
+      "priority": "High",
+      "summary": "Cut average build time by caching dependencies and parallelizing test jobs."
+    },
+    {
+      "name": "Accessibility Audit",
+      "owner": "Dotcom",
+      "status": "Completed",
+      "recentActivity": "Final report shared and all critical issues closed.",
+      "priority": "Low",
+      "summary": "Review key pages against WCAG guidelines and fix the most serious issues."
+    },
+    {
+      "name": "Docs Search",
+      "owner": "Mona",
+      "status": "On Track",
+      "recentActivity": "Search results now rank headings above body text.",
+      "priority": "Low",
+      "summary": "Improve search relevance and speed across the documentation site."
+    },
+    {
+      "name": "Community Discussions Migration and Moderation Tooling Overhaul",
+      "owner": "Hubot",
+      "status": "At Risk",
+      "recentActivity": "Moderation queue prototype demoed; migration scripts still in review.",
+      "priority": "Medium",
+      "summary": "Move community threads to the new platform and give moderators better tools."
+    }
+  ]
+}

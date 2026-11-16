@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Project Pulse</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="dashboard" aria-labelledby="dashboard-title">
+    <header class="dashboard-header">
+      <h1 id="dashboard-title">Project Pulse</h1>
+      <p class="dashboard-subtitle">See what is moving, who owns it, and where help is needed.</p>
+      <ul class="dashboard-summary" aria-label="Projects by status"></ul>
+    </header>
+
+    <p class="dashboard-message is-loading" id="dashboard-message" role="status" aria-live="polite">Loading projects…</p>
+
+    <ul class="project-grid" role="list"></ul>
+  </main>
+
+  <script>
+    var DATA_URL = "project-data.json";
+    var KNOWN_STATUSES = ["On Track", "At Risk", "Blocked", "Completed"];
+    var MESSAGE_BASE_CLASS = "dashboard-message";
+    var MESSAGE_KIND_CLASSES = {
+      loading: "is-loading",
+      empty: "is-empty",
+      error: "is-error"
+    };
+    var FILE_PROTOCOL_HELP =
+      "Couldn't load project data. Open the dashboard with the Run Project Pulse Dashboard " +
+      "launch configuration (or run `python3 -m http.server 5500` in app/).";
+
+    var messageElement = document.getElementById("dashboard-message");
+    var gridElement = document.querySelector(".project-grid");
+    var summaryElement = document.querySelector(".dashboard-summary");
+
+    // Trim, lowercase, and replace runs of non-alphanumeric characters with "-".
+    function toSlug(value) {
+      if (value === null || value === undefined) {
+        return "unknown";
+      }
+      var slug = String(value)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      return slug === "" ? "unknown" : slug;
+    }
+
+    // Returns the value as a trimmed string, or the fallback when missing or empty.
+    function textOrFallback(value, fallback) {
+      if (value === null || value === undefined) {
+        return fallback;
+      }
+      var text = String(value).trim();
+      return text === "" ? fallback : text;
+    }
+
+    // kind: "loading" | "empty" | "error" | "hidden"
+    function renderMessage(kind, text) {
+      messageElement.className = MESSAGE_BASE_CLASS;
+      if (kind === "hidden") {
+        messageElement.textContent = "";
+        messageElement.hidden = true;
+        return;
+      }
+      messageElement.hidden = false;
+      messageElement.classList.add(MESSAGE_KIND_CLASSES[kind]);
+      messageElement.textContent = text;
+    }
+
+    function normalizeProject(rawProject) {
+      return {
+        name: textOrFallback(rawProject.name, "Untitled project"),
+        owner: textOrFallback(rawProject.owner, "Unassigned"),
+        status: textOrFallback(rawProject.status, "Unknown"),
+        recentActivity: textOrFallback(rawProject.recentActivity, "No recent activity"),
+        priority: textOrFallback(rawProject.priority, "Unknown"),
+        summary: textOrFallback(rawProject.summary, "")
+      };
+    }
+
+    // Unknown values keep their text but get the "unknown" slug.
+    function toKnownSlug(value, knownValues) {
+      var slug = toSlug(value);
+      var knownSlugs = knownValues.map(toSlug);
+      return knownSlugs.indexOf(slug) === -1 ? "unknown" : slug;
+    }
+
+    function createTextElement(tagName, className, text) {
+      var element = document.createElement(tagName);
+      element.className = className;
+      element.textContent = text;
+      return element;
+    }
+
+    function createProjectCard(project) {
+      var statusSlug = toKnownSlug(project.status, KNOWN_STATUSES);
+      var prioritySlug = toKnownSlug(project.priority, ["High", "Medium", "Low"]);
+
+      var item = document.createElement("li");
+      var card = document.createElement("article");
+      card.className = "project-card";
+      card.setAttribute("data-status", statusSlug);
+      card.setAttribute("data-priority", prioritySlug);
+
+      var header = document.createElement("header");
+      header.className = "project-card__header";
+      header.appendChild(createTextElement("h2", "project-card__name", project.name));
+      header.appendChild(
+        createTextElement("span", "status-badge status-badge--" + statusSlug, project.status)
+      );
+      card.appendChild(header);
+
+      card.appendChild(createTextElement("p", "project-card__owner", "Owner: " + project.owner));
+
+      if (project.summary !== "") {
+        card.appendChild(createTextElement("p", "project-card__summary", project.summary));
+      }
+
+      var activity = document.createElement("div");
+      activity.className = "project-card__activity";
+      activity.appendChild(createTextElement("span", "project-card__activity-label", "Recent activity"));
+      activity.appendChild(document.createTextNode(" "));
+      activity.appendChild(createTextElement("span", "project-card__activity-text", project.recentActivity));
+      card.appendChild(activity);
+
+      card.appendChild(
+        createTextElement(
+          "span",
+          "priority-tag priority-tag--" + prioritySlug,
+          "Priority: " + project.priority
+        )
+      );
+
+      item.appendChild(card);
+      return item;
+    }
+
+    function renderSummary(projects) {
+      summaryElement.textContent = "";
+      KNOWN_STATUSES.forEach(function (statusName) {
+        var count = projects.filter(function (project) {
+          return toSlug(project.status) === toSlug(statusName);
+        }).length;
+        var item = document.createElement("li");
+        item.className = "summary-item";
+        item.appendChild(createTextElement("span", "summary-count", String(count)));
+        item.appendChild(createTextElement("span", "summary-label", statusName));
+        summaryElement.appendChild(item);
+      });
+    }
+
+    function renderProjects(rawProjects) {
+      var projects = [];
+      rawProjects.forEach(function (rawProject, index) {
+        if (rawProject === null || typeof rawProject !== "object" || Array.isArray(rawProject)) {
+          console.warn("Skipping project at index " + index + ": not an object.", rawProject);
+          return;
+        }
+        projects.push(normalizeProject(rawProject));
+      });
+
+      gridElement.textContent = "";
+      renderSummary(projects);
+
+      if (projects.length === 0) {
+        gridElement.hidden = true;
+        renderMessage("empty", "No projects yet. Add entries to project-data.json.");
+        return;
+      }
+
+      projects.forEach(function (project) {
+        gridElement.appendChild(createProjectCard(project));
+      });
+      gridElement.hidden = false;
+      renderMessage("hidden", "");
+    }
+
+    function showError(friendlyText, technicalDetails) {
+      console.error(friendlyText, technicalDetails);
+      gridElement.textContent = "";
+      gridElement.hidden = true;
+      renderSummary([]);
+      renderMessage("error", friendlyText);
+    }
+
+    function loadProjects() {
+      renderMessage("loading", "Loading projects…");
+
+      fetch(DATA_URL)
+        .then(function (response) {
+          if (!response.ok) {
+            throw { kind: "http", status: response.status };
+          }
+          return response.text();
+        })
+        .then(function (bodyText) {
+          var data;
+          try {
+            data = JSON.parse(bodyText);
+          } catch (parseError) {
+            throw { kind: "parse", cause: parseError };
+          }
+          if (data === null || typeof data !== "object" || !Array.isArray(data.projects)) {
+            throw { kind: "shape" };
+          }
+          renderProjects(data.projects);
+        })
+        .catch(function (error) {
+          if (error && error.kind === "http") {
+            showError(
+              "Couldn't load project data (HTTP " + error.status + "). Check that project-data.json exists next to index.html.",
+              error
+            );
+          } else if (error && error.kind === "parse") {
+            showError("Project data is malformed. Check project-data.json for JSON syntax errors.", error.cause);
+          } else if (error && error.kind === "shape") {
+            showError("Project data is invalid: project-data.json needs a top-level \"projects\" array.", error);
+          } else if (window.location.protocol === "file:") {
+            showError(FILE_PROTOCOL_HELP, error);
+          } else {
+            showError("Couldn't load project data. Check your connection and that the server is running.", error);
+          }
+        });
+    }
+
+    loadProjects();
+  </script>
+</body>
+</html>
